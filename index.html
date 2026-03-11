@@ -470,6 +470,16 @@ const ASSETS = {
     {sym:'AVAX',name:'Avalanche',icon:'▲',type:'crypto',bnSym:'AVAXUSDT'},
     {sym:'LINK',name:'Chainlink',icon:'⬡',type:'crypto',bnSym:'LINKUSDT'},
     {sym:'DOT',name:'Polkadot',icon:'●',type:'crypto',bnSym:'DOTUSDT'},
+    {sym:'UNI',name:'Uniswap',icon:'🦄',type:'crypto',bnSym:'UNIUSDT'},
+    {sym:'ATOM',name:'Cosmos',icon:'⚛',type:'crypto',bnSym:'ATOMUSDT'},
+    {sym:'LTC',name:'Litecoin',icon:'Ł',type:'crypto',bnSym:'LTCUSDT'},
+    {sym:'NEAR',name:'NEAR Protocol',icon:'Ⓝ',type:'crypto',bnSym:'NEARUSDT'},
+    {sym:'ARB',name:'Arbitrum',icon:'🔵',type:'crypto',bnSym:'ARBUSDT'},
+    {sym:'OP',name:'Optimism',icon:'🔴',type:'crypto',bnSym:'OPUSDT'},
+    {sym:'APT',name:'Aptos',icon:'◈',type:'crypto',bnSym:'APTUSDT'},
+    {sym:'SUI',name:'Sui Network',icon:'💧',type:'crypto',bnSym:'SUIUSDT'},
+    {sym:'INJ',name:'Injective',icon:'🌀',type:'crypto',bnSym:'INJUSDT'},
+    {sym:'FTM',name:'Fantom',icon:'👻',type:'crypto',bnSym:'FTMUSDT'},
   ],
   stocks: [
     {sym:'AAPL',name:'Apple Inc.',icon:'🍎',type:'stock'},
@@ -496,6 +506,16 @@ const FALLBACK = {
   AVAX:{price:28.40,chg:-1.15,high:29.2,low:27.8,vol:650000000},
   LINK:{price:14.20,chg:1.85,high:14.6,low:13.9,vol:520000000},
   DOT:{price:6.80,chg:-0.45,high:7.05,low:6.65,vol:420000000},
+  UNI:{price:9.20,chg:1.10,high:9.55,low:8.98,vol:310000000},
+  ATOM:{price:8.50,chg:-0.65,high:8.80,low:8.30,vol:280000000},
+  LTC:{price:88.40,chg:0.92,high:90.2,low:87.1,vol:540000000},
+  NEAR:{price:5.80,chg:2.45,high:6.10,low:5.65,vol:380000000},
+  ARB:{price:0.9200,chg:-1.20,high:0.945,low:0.905,vol:420000000},
+  OP:{price:2.10,chg:1.55,high:2.18,low:2.04,vol:290000000},
+  APT:{price:8.90,chg:3.20,high:9.25,low:8.65,vol:340000000},
+  SUI:{price:2.45,chg:4.10,high:2.58,low:2.38,vol:520000000},
+  INJ:{price:22.50,chg:-0.85,high:23.20,low:22.10,vol:180000000},
+  FTM:{price:0.6800,chg:1.75,high:0.705,low:0.662,vol:240000000},
   AAPL:{price:187.50,chg:0.82,high:188.9,low:186.1,vol:55000000},
   NVDA:{price:875.20,chg:2.14,high:889.0,low:862.4,vol:42000000},
   TSLA:{price:175.30,chg:-1.25,high:179.5,low:173.2,vol:88000000},
@@ -554,7 +574,7 @@ Object.keys(FALLBACK).forEach(sym => {
   liveData[sym] = {
     price: p, chg: f.chg+(Math.random()-.5)*.1,
     high: f.high, low: f.low, vol: f.vol,
-    candles: genFakeCandles(p, 50), loaded: false
+    candles: genFakeCandles(p, 100), loaded: false
   };
 });
 
@@ -704,13 +724,19 @@ function getOverallSignal(rsi, macd, stoch, price, ma50, ma200, bb) {
 // LIVE DATA FETCH
 // ═══════════════════════════════════════════
 async function fetchPrices() {
+  // Try multiple CORS-friendly endpoints
+  const PROXIES = [
+    sym => `https://api.binance.com/api/v3/ticker/24hr?symbol=${sym}`,
+    sym => `https://api.coingecko.com/api/v3/simple/price?ids=${sym}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_high_low_24h=true`,
+  ];
   try {
+    // Try Binance directly
     const cryptos = ASSETS.crypto;
     const syms = cryptos.map(c=>`"${c.bnSym}"`).join(',');
-    const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=[${syms}]`,{signal:AbortSignal.timeout(6000)});
+    const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=[${syms}]`,{signal:AbortSignal.timeout(5000)});
     if(!r.ok) throw 0;
     const data = await r.json();
-    if(!Array.isArray(data)) throw 0;
+    if(!Array.isArray(data)||!data.length) throw 0;
     data.forEach(t => {
       const asset = cryptos.find(c=>c.bnSym===t.symbol);
       if(!asset) return;
@@ -722,7 +748,6 @@ async function fetchPrices() {
         high: parseFloat(t.highPrice)||p, low: parseFloat(t.lowPrice)||p,
         vol: parseFloat(t.quoteVolume)||0, loaded: true
       };
-      // update candles last close
       if(liveData[asset.sym].candles?.length) {
         const cands = liveData[asset.sym].candles;
         cands[cands.length-1].c = p;
@@ -730,10 +755,31 @@ async function fetchPrices() {
     });
     document.getElementById('last-upd').textContent = 'LIVE · '+new Date().toLocaleTimeString('en-US',{hour12:false});
     return true;
-  } catch(e) {
-    document.getElementById('last-upd').textContent = 'DEMO DATA · NO CONNECTION';
-    return false;
-  }
+  } catch(e) {}
+  try {
+    // Try CoinGecko
+    const cgIds = ASSETS.crypto.map(c=>c.sym.toLowerCase()==='btc'?'bitcoin':c.sym.toLowerCase()==='eth'?'ethereum':c.sym.toLowerCase()==='sol'?'solana':c.sym.toLowerCase()==='bnb'?'binancecoin':c.sym.toLowerCase()==='xrp'?'ripple':c.sym.toLowerCase()==='ada'?'cardano':c.sym.toLowerCase()==='doge'?'dogecoin':c.sym.toLowerCase()==='avax'?'avalanche-2':c.sym.toLowerCase()==='link'?'chainlink':'polkadot').join(',');
+    const r2 = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cgIds}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_high_low_24h=true`,{signal:AbortSignal.timeout(7000)});
+    if(!r2.ok) throw 0;
+    const data2 = await r2.json();
+    const cgMap = {bitcoin:'BTC',ethereum:'ETH',solana:'SOL',binancecoin:'BNB',ripple:'XRP',cardano:'ADA',dogecoin:'DOGE','avalanche-2':'AVAX',chainlink:'LINK',polkadot:'DOT'};
+    Object.entries(data2).forEach(([id,v])=>{
+      const sym = cgMap[id]; if(!sym||!v.usd) return;
+      const p = v.usd;
+      liveData[sym] = {...liveData[sym], price:p, chg:v.usd_24h_change||0,
+        high:v.usd_24h_high||p*1.02, low:v.usd_24h_low||p*0.98, vol:v.usd_24h_vol||0, loaded:true};
+      if(liveData[sym].candles?.length) liveData[sym].candles[liveData[sym].candles.length-1].c = p;
+    });
+    document.getElementById('last-upd').textContent = 'LIVE (CG) · '+new Date().toLocaleTimeString('en-US',{hour12:false});
+    return true;
+  } catch(e) {}
+  // Fallback: update prices with small random walk to simulate live
+  ASSETS.crypto.forEach(a=>{
+    const d = liveData[a.sym];
+    if(d) { d.price *= (1+(Math.random()-.5)*.002); d.candles[d.candles.length-1].c=d.price; }
+  });
+  document.getElementById('last-upd').textContent = 'DEMO · '+new Date().toLocaleTimeString('en-US',{hour12:false});
+  return false;
 }
 
 async function fetchCandles(sym, bnSym, tf) {
@@ -742,7 +788,7 @@ async function fetchCandles(sym, bnSym, tf) {
     const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${bnSym}&interval=${tfMap[tf]}&limit=100`,{signal:AbortSignal.timeout(6000)});
     if(!r.ok) throw 0;
     const data = await r.json();
-    if(!Array.isArray(data)) throw 0;
+    if(!Array.isArray(data)||!data.length) throw 0;
     liveData[sym].candles = data.map(k=>({o:parseFloat(k[1]),h:parseFloat(k[2]),l:parseFloat(k[3]),c:parseFloat(k[4]),v:parseFloat(k[5])}));
     return true;
   } catch(e){ return false; }
@@ -870,7 +916,7 @@ function buildSignalTab() {
     </div>
     <div style="text-align:right">
       <div class="sb-price" style="color:#fff">${fmt(p)}</div>
-      <div class="sb-chg" style="color:${d.chg>=0?'var(--green)':'var(--red)';font-family:'Syne Mono',monospace}">${d.chg>=0?'▲ +':'▼ '}${Math.abs(d.chg).toFixed(2)}%</div>
+      <div class="sb-chg" style="color:${d.chg>=0?'var(--green)':'var(--red)'};font-family:'Syne Mono',monospace">${d.chg>=0?'▲ +':'▼ '}${Math.abs(d.chg).toFixed(2)}%</div>
       <div style="font-size:7px;color:var(--text3);margin-top:5px;font-family:'Syne Mono',monospace">ATR(${TF}): ${fmt(atr)}</div>
     </div>`;
 
