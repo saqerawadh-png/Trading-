@@ -217,6 +217,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Space 
 @keyframes dot{0%,80%,100%{transform:scale(.5);opacity:.3}40%{transform:scale(1);opacity:1}}
 
 /* WARN */
+.lock-btn{display:flex;align-items:center;gap:6px;padding:7px 16px;border-radius:7px;font-size:9px;font-weight:700;cursor:pointer;letter-spacing:.1em;border:none;font-family:‘Space Grotesk’,sans-serif;transition:all .2s}
+.lock-btn.unlocked{background:linear-gradient(135deg,#1a3a1a,#0d2a0d);border:1px solid var(–green);color:var(–green)}
+.lock-btn.unlocked:hover{background:rgba(0,255,136,.15)}
+.lock-btn.locked{background:linear-gradient(135deg,#3a1a00,#2a1000);border:1px solid var(–gold);color:var(–gold);animation:lockpulse 2s infinite}
+@keyframes lockpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,215,0,.3)}50%{box-shadow:0 0 0 6px rgba(255,215,0,0)}}
+.locked-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;background:rgba(255,215,0,.12);border:1px solid rgba(255,215,0,.3);font-size:7px;color:var(–gold);font-weight:700;letter-spacing:.1em}
 .warn-bar{padding:6px 10px;border-radius:6px;background:rgba(255,215,0,.06);border:1px solid rgba(255,215,0,.15);border-left:3px solid var(–gold);font-size:7px;color:var(–gold);letter-spacing:.04em}
 
 /* FOOTER */
@@ -319,11 +325,26 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Space 
 
   <!-- SIGNAL TAB -->
   <div id="cpanel-signal" class="cpanel active">
+    <!-- LOCK BAR -->
+    <div id="lock-bar" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:8px;background:var(--card2);border:1px solid var(--border);flex-wrap:wrap;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="lock-btn unlocked" id="lock-btn" onclick="toggleLock()">🔓 LOCK TRADE</button>
+        <div id="lock-info" style="display:none;font-size:8px;color:var(--text3);font-family:'Syne Mono',monospace"></div>
+      </div>
+      <div id="lock-status" style="font-size:7px;color:var(--text3);font-family:'Syne Mono',monospace;letter-spacing:.08em">الأهداف تتغير مع السعر · اضغط LOCK لتثبيتها</div>
+    </div>
     <div id="signal-banner" class="card-bd"></div>
     <div class="ee-grid" id="ee-grid"></div>
     <div class="card">
-      <div class="card-hd"><span class="card-title mono">📋 TRADE PLAN TABLE</span></div>
+      <div class="card-hd" style="display:flex;justify-content:space-between;align-items:center">
+        <span class="card-title mono">📋 TRADE PLAN TABLE</span>
+        <span id="plan-lock-badge" style="display:none" class="locked-badge mono">🔒 LOCKED</span>
+      </div>
       <div style="overflow-x:auto"><table class="position-table"><thead><tr><th>LEVEL</th><th>TYPE</th><th>PRICE</th><th>% FROM SPOT</th><th>ACTION</th><th>SIZE</th><th>R:R</th></tr></thead><tbody id="plan-rows"></tbody></table></div>
+    </div>
+    <div id="locked-pnl-card" style="display:none;padding:10px 14px;border-radius:8px;background:var(--card);border:1px solid var(--border)">
+      <div style="font-size:7px;color:var(--text3);letter-spacing:.12em;margin-bottom:6px;font-family:'Syne Mono',monospace">📊 P&L الحالي منذ القفل</div>
+      <div id="locked-pnl-content" style="display:flex;gap:16px;flex-wrap:wrap"></div>
     </div>
     <div class="warn-bar mono">⚠ Technical analysis based on live market data. Not financial advice. Always manage risk responsibly.</div>
   </div>
@@ -566,6 +587,7 @@ let TF = '1d';
 let AI_TYPE = 'technical';
 let activeTab = 'crypto';
 let portfolioSize = 5000;
+let lockedTrade = null; // { sym, tf, entry, sl, e1,e2,e3, tp1,tp2,tp3, signal, time, direction }
 
 // Init fallback data
 Object.keys(FALLBACK).forEach(sym => {
@@ -881,6 +903,95 @@ function buildHero() {
   }
 }
 
+// ═══════════════════════════════════════════
+// LOCK TRADE
+// ═══════════════════════════════════════════
+window.toggleLock = function() {
+  if(lockedTrade) {
+    // UNLOCK
+    lockedTrade = null;
+    document.getElementById('lock-btn').className = 'lock-btn unlocked';
+    document.getElementById('lock-btn').textContent = '🔓 LOCK TRADE';
+    document.getElementById('lock-info').style.display = 'none';
+    document.getElementById('lock-status').textContent = 'الأهداف تتغير مع السعر · اضغط LOCK لتثبيتها';
+    document.getElementById('lock-status').style.color = 'var(--text3)';
+    document.getElementById('plan-lock-badge').style.display = 'none';
+    document.getElementById('locked-pnl-card').style.display = 'none';
+    buildSignalTab();
+  } else {
+    // LOCK — capture current trade state
+    const d = liveData[SEL.sym];
+    if(!d || !d.candles || d.candles.length < 20) return;
+    const candles = d.candles, p = d.price;
+    const rsi = calcRSI(candles), macd = calcMACD(candles), stoch = calcStoch(candles);
+    const ma50 = calcMA(candles,50), ma200 = calcMA(candles,Math.min(200,candles.length));
+    const bb = calcBollinger(candles), atr = calcATR(candles);
+    const sig = getOverallSignal(rsi, macd, stoch, p, ma50, ma200, bb);
+    const m = TF_CONFIG[TF];
+    const bull = sig.label.includes('BUY');
+    lockedTrade = {
+      sym: SEL.sym, name: SEL.name, tf: TF, price: p,
+      direction: bull ? 'LONG' : 'SHORT',
+      signal: sig.label, conf: sig.conf, color: sig.color, bg: sig.bg,
+      e1: bull ? p*.9985 : p*1.0015,
+      e2: bull ? p - atr*m.atrM : p + atr*m.atrM,
+      e3: bull ? p - atr*m.atrM*1.8 : p + atr*m.atrM*1.8,
+      sl: bull ? p*(1-m.sl) : p*(1+m.sl),
+      tp1: bull ? p*(1+m.tp1) : p*(1-m.tp1),
+      tp2: bull ? p*(1+m.tp2) : p*(1-m.tp2),
+      tp3: bull ? p*(1+m.tp3) : p*(1-m.tp3),
+      atr, rsi, macd, time: new Date(),
+      chg: d.chg, high: d.high, low: d.low,
+    };
+    document.getElementById('lock-btn').className = 'lock-btn locked';
+    document.getElementById('lock-btn').textContent = '🔒 UNLOCK TRADE';
+    document.getElementById('lock-info').style.display = 'block';
+    document.getElementById('lock-info').textContent = SEL.sym+' · '+sig.label+' · @ '+fmt(p)+' · '+new Date().toLocaleTimeString('en-US',{hour12:false});
+    document.getElementById('lock-status').textContent = '🔒 الأهداف مثبتة · لن تتغير حتى تضغط UNLOCK';
+    document.getElementById('lock-status').style.color = 'var(--gold)';
+    document.getElementById('plan-lock-badge').style.display = 'inline-flex';
+    document.getElementById('locked-pnl-card').style.display = 'block';
+    buildSignalTab();
+  }
+};
+
+function updateLockedPnL() {
+  if(!lockedTrade) return;
+  const d = liveData[lockedTrade.sym];
+  if(!d) return;
+  const cur = d.price, entry = lockedTrade.price;
+  const bull = lockedTrade.direction === 'LONG';
+  const rawPnl = bull ? cur - entry : entry - cur;
+  const pnlPct = (rawPnl / entry * 100).toFixed(2);
+  const pnlColor = rawPnl >= 0 ? 'var(--green)' : 'var(--red)';
+  const tp1Hit = bull ? cur >= lockedTrade.tp1 : cur <= lockedTrade.tp1;
+  const tp2Hit = bull ? cur >= lockedTrade.tp2 : cur <= lockedTrade.tp2;
+  const slHit  = bull ? cur <= lockedTrade.sl  : cur >= lockedTrade.sl;
+  const elapsed = Math.floor((new Date() - lockedTrade.time) / 60000);
+  document.getElementById('locked-pnl-content').innerHTML = `
+    <div style="flex:1;min-width:90px;text-align:center;padding:8px;border-radius:7px;background:var(--card2);border:1px solid ${pnlColor}40">
+      <div style="font-size:6px;color:var(--text3);margin-bottom:4px;font-family:'Syne Mono',monospace">P&L %</div>
+      <div style="font-size:18px;font-weight:700;color:${pnlColor};font-family:'Syne Mono',monospace">${rawPnl>=0?'+':''}${pnlPct}%</div>
+    </div>
+    <div style="flex:1;min-width:90px;text-align:center;padding:8px;border-radius:7px;background:var(--card2);border:1px solid var(--border)">
+      <div style="font-size:6px;color:var(--text3);margin-bottom:4px;font-family:'Syne Mono',monospace">السعر الحالي</div>
+      <div style="font-size:14px;font-weight:700;color:#fff;font-family:'Syne Mono',monospace">${fmt(cur)}</div>
+      <div style="font-size:7px;color:var(--text3);font-family:'Syne Mono',monospace">دخول: ${fmt(entry)}</div>
+    </div>
+    <div style="flex:1;min-width:90px;text-align:center;padding:8px;border-radius:7px;background:var(--card2);border:1px solid var(--border)">
+      <div style="font-size:6px;color:var(--text3);margin-bottom:4px;font-family:'Syne Mono',monospace">الوقت</div>
+      <div style="font-size:14px;font-weight:700;color:var(--accent);font-family:'Syne Mono',monospace">${elapsed}m</div>
+    </div>
+    <div style="flex:1;min-width:110px;padding:8px;border-radius:7px;background:var(--card2);border:1px solid var(--border)">
+      <div style="font-size:6px;color:var(--text3);margin-bottom:5px;font-family:'Syne Mono',monospace">الأهداف</div>
+      <div style="font-size:8px;font-family:'Syne Mono',monospace;line-height:1.8">
+        <span style="color:${tp1Hit?'var(--green)':'var(--text3)'}">${tp1Hit?'✅':'⏳'} TP1 ${fmt(lockedTrade.tp1)}</span><br>
+        <span style="color:${tp2Hit?'var(--green)':'var(--text3)'}">${tp2Hit?'✅':'⏳'} TP2 ${fmt(lockedTrade.tp2)}</span><br>
+        <span style="color:${slHit?'var(--red)':'var(--text3)'}">${slHit?'🔴':'🛑'} SL ${fmt(lockedTrade.sl)}</span>
+      </div>
+    </div>`;
+}
+
 function buildSignalTab() {
   const a = SEL, d = liveData[a.sym];
   if(!d || !d.candles || d.candles.length < 20) return;
@@ -921,13 +1032,15 @@ function buildSignalTab() {
     </div>`;
 
   // Entry / Exit Grid
-  const sl = bull ? p*(1-m.sl) : p*(1+m.sl);
-  const e1 = bull ? p*.9985 : p*1.0015;
-  const e2 = bull ? p-atr*m.atrM : p+atr*m.atrM;
-  const e3 = bull ? p-atr*m.atrM*1.8 : p+atr*m.atrM*1.8;
-  const tp1 = bull ? p*(1+m.tp1) : p*(1-m.tp1);
-  const tp2 = bull ? p*(1+m.tp2) : p*(1-m.tp2);
-  const tp3 = bull ? p*(1+m.tp3) : p*(1-m.tp3);
+  // Use locked values if trade is locked
+  const _bull = lockedTrade && lockedTrade.sym===SEL.sym ? lockedTrade.direction==='LONG' : bull;
+  const sl  = lockedTrade && lockedTrade.sym===SEL.sym ? lockedTrade.sl  : (_bull ? p*(1-m.sl)  : p*(1+m.sl));
+  const e1  = lockedTrade && lockedTrade.sym===SEL.sym ? lockedTrade.e1  : (_bull ? p*.9985      : p*1.0015);
+  const e2  = lockedTrade && lockedTrade.sym===SEL.sym ? lockedTrade.e2  : (_bull ? p-atr*m.atrM : p+atr*m.atrM);
+  const e3  = lockedTrade && lockedTrade.sym===SEL.sym ? lockedTrade.e3  : (_bull ? p-atr*m.atrM*1.8 : p+atr*m.atrM*1.8);
+  const tp1 = lockedTrade && lockedTrade.sym===SEL.sym ? lockedTrade.tp1 : (_bull ? p*(1+m.tp1) : p*(1-m.tp1));
+  const tp2 = lockedTrade && lockedTrade.sym===SEL.sym ? lockedTrade.tp2 : (_bull ? p*(1+m.tp2) : p*(1-m.tp2));
+  const tp3 = lockedTrade && lockedTrade.sym===SEL.sym ? lockedTrade.tp3 : (_bull ? p*(1+m.tp3) : p*(1-m.tp3));
   const risk = Math.abs(p-sl);
 
   const ee = document.getElementById('ee-grid');
@@ -1373,6 +1486,7 @@ setInterval(async()=>{
     buildAssetList();
     buildHero();
     rebuildAll();
+    if(lockedTrade) updateLockedPnL();
   }
 },1000);
 
