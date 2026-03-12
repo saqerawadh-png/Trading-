@@ -222,6 +222,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Space 
 .lock-btn.unlocked:hover{background:rgba(0,255,136,.15)}
 .lock-btn.locked{background:linear-gradient(135deg,#3a1a00,#2a1000);border:1px solid var(–gold);color:var(–gold);animation:lockpulse 2s infinite}
 @keyframes lockpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,215,0,.3)}50%{box-shadow:0 0 0 6px rgba(255,215,0,0)}}
+@keyframes slideIn{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
 .locked-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;background:rgba(255,215,0,.12);border:1px solid rgba(255,215,0,.3);font-size:7px;color:var(–gold);font-weight:700;letter-spacing:.1em}
 .warn-bar{padding:6px 10px;border-radius:6px;background:rgba(255,215,0,.06);border:1px solid rgba(255,215,0,.15);border-left:3px solid var(–gold);font-size:7px;color:var(–gold);letter-spacing:.04em}
 
@@ -417,9 +418,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Space 
 
     <!-- TRADES TABLE -->
     <div class="card">
-      <div class="card-hd" style="display:flex;justify-content:space-between;align-items:center">
+      <div class="card-hd" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
         <span class="card-title mono">📊 سجل الصفقات</span>
-        <button onclick="clearJournal()" style="font-size:7px;padding:3px 8px;background:rgba(255,51,85,.1);border:1px solid rgba(255,51,85,.3);border-radius:4px;color:var(--red);cursor:pointer;font-family:'Space Grotesk',sans-serif">🗑 مسح الكل</button>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          <button onclick="exportJournal()" style="font-size:7px;padding:3px 9px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);border-radius:4px;color:var(--accent);cursor:pointer;font-family:'Space Grotesk',sans-serif;font-weight:700">💾 حفظ</button>
+          <button onclick="document.getElementById('j-import').click()" style="font-size:7px;padding:3px 9px;background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.25);border-radius:4px;color:var(--gold);cursor:pointer;font-family:'Space Grotesk',sans-serif;font-weight:700">📂 استيراد</button>
+          <input id="j-import" type="file" accept=".json" style="display:none" onchange="importJournal(event)"/>
+          <button onclick="clearJournal()" style="font-size:7px;padding:3px 8px;background:rgba(255,51,85,.1);border:1px solid rgba(255,51,85,.3);border-radius:4px;color:var(--red);cursor:pointer;font-family:'Space Grotesk',sans-serif;font-weight:700">🗑 مسح</button>
+        </div>
       </div>
       <div style="overflow-x:auto">
         <table class="position-table" id="journal-table">
@@ -1579,6 +1585,7 @@ setInterval(async()=>{
     buildHero();
     rebuildAll();
     if(lockedTrade) updateLockedPnL();
+    checkPriceAlerts();
   }
 },1000);
 
@@ -1598,6 +1605,105 @@ try {
 
 function saveJournal() {
   try { localStorage.setItem('apex_journal', JSON.stringify(journal)); } catch(e){}
+}
+
+// EXPORT
+window.exportJournal = function() {
+  if(!journal.length){ showAlert('⚠️','لا توجد صفقات للحفظ','var(--gold)','rgba(255,215,0,.1)','rgba(255,215,0,.3)'); return; }
+  const data = JSON.stringify({version:1, exported: new Date().toISOString(), trades: journal}, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = 'apex_journal_'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showAlert('💾','تم حفظ السجل بنجاح\n'+journal.length+' صفقة محفوظة','var(--green)','rgba(0,255,136,.08)','rgba(0,255,136,.25)');
+};
+
+// IMPORT
+window.importJournal = function(e) {
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      const trades = data.trades || data;
+      if(!Array.isArray(trades)) throw 0;
+      journal = trades;
+      saveJournal();
+      buildJournal();
+      showAlert('📂','تم استيراد السجل بنجاح\n'+trades.length+' صفقة','var(--accent)','rgba(0,212,255,.08)','rgba(0,212,255,.25)');
+    } catch(err) {
+      showAlert('⚠️','خطأ في الملف · يرجى استخدام ملف JSON صحيح','var(--red)','rgba(255,51,85,.08)','rgba(255,51,85,.25)');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value='';
+};
+
+// SHOW ALERT NOTIFICATION
+function showAlert(icon, msg, color, bg, border) {
+  const notif = document.getElementById('price-alert-notif');
+  const cont  = document.getElementById('alert-content');
+  notif.style.background = bg;
+  notif.style.borderColor = border;
+  cont.innerHTML = `<div style="font-size:18px;margin-bottom:4px">${icon}</div>
+    <div style="font-size:10px;font-weight:700;color:${color};font-family:'Syne Mono',monospace;white-space:pre-line;line-height:1.6">${msg}</div>`;
+  notif.style.display = 'block';
+  notif.style.animation = 'none';
+  setTimeout(()=>{ notif.style.animation='slideIn .3s ease'; },10);
+  clearTimeout(notif._timer);
+  notif._timer = setTimeout(()=>{ notif.style.display='none'; }, 6000);
+}
+
+// PRICE ALERT CHECKER
+let alertedPrices = {};
+function checkPriceAlerts() {
+  if(!journal.length) return;
+  const openTrades = journal.filter(j=>j.result==='OPEN');
+  openTrades.forEach(t => {
+    const d = liveData[t.sym];
+    if(!d || !d.price) return;
+    const cur = d.price;
+    const bull = t.dir === 'LONG';
+    const tpHit = bull ? cur >= t.tp : cur <= t.tp;
+    const slHit = bull ? cur <= t.sl : cur >= t.sl;
+    const key_tp = t.id+'_tp';
+    const key_sl = t.id+'_sl';
+
+    if(tpHit && !alertedPrices[key_tp]) {
+      alertedPrices[key_tp] = true;
+      showAlert(
+        '🎯',
+        `${t.sym} وصل الهدف!\nالسعر: $${cur.toFixed(4)}\nالهدف: $${t.tp}\nالربح المتوقع: $${t.profit}`,
+        'var(--green)','rgba(0,255,136,.1)','rgba(0,255,136,.3)'
+      );
+      // Play sound if available
+      try { new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAA...').play(); } catch(e){}
+    }
+
+    if(slHit && !alertedPrices[key_sl]) {
+      alertedPrices[key_sl] = true;
+      showAlert(
+        '🛑',
+        `${t.sym} وصل Stop Loss!\nالسعر: $${cur.toFixed(4)}\nSL: $${t.sl}\nأغلق الصفقة الآن!`,
+        'var(--red)','rgba(255,51,85,.1)','rgba(255,51,85,.3)'
+      );
+    }
+
+    // Near TP warning (within 1%)
+    const nearTP = bull ? cur >= t.tp*0.99 : cur <= t.tp*1.01;
+    const key_near = t.id+'_near';
+    if(nearTP && !tpHit && !alertedPrices[key_near]) {
+      alertedPrices[key_near] = true;
+      showAlert(
+        '⚡',
+        `${t.sym} قريب من الهدف!\nالسعر: $${cur.toFixed(4)}\nالهدف: $${t.tp} (1% متبقي)`,
+        'var(--gold)','rgba(255,215,0,.08)','rgba(255,215,0,.25)'
+      );
+    }
+  });
 }
 
 window.addJournalTrade = function() {
@@ -1731,6 +1837,23 @@ async function init() {
   buildHero();
   rebuildAll();
   buildAITypeBtns();
+  // Pre-load saved trades if journal is empty
+  if(journal.length === 0) {
+    const preloaded = [
+      {id:1001,sym:'BTC',tf:'1W',dir:'SHORT',entry:69.67,tp:64.02,sl:73.72,cap:1500,lev:3,tpPct:'8.11',slPct:'5.83',profit:'364.98',loss:'262.35',rr:'1.4',result:'OPEN',date:'12/3/2025',closePrice:null},
+      {id:1002,sym:'ETH',tf:'1W',dir:'SHORT',entry:2027,tp:1721,sl:2227,cap:1500,lev:3,tpPct:'15.10',slPct:'9.87',profit:'679.33',loss:'444.15',rr:'1.5',result:'OPEN',date:'12/3/2025',closePrice:null},
+      {id:1003,sym:'SOL',tf:'1W',dir:'SHORT',entry:85.00,tp:74.00,sl:93.25,cap:1500,lev:3,tpPct:'12.94',slPct:'9.71',profit:'582.35',loss:'436.95',rr:'1.3',result:'OPEN',date:'12/3/2025',closePrice:null},
+      {id:1004,sym:'BNB',tf:'1W',dir:'SHORT',entry:643.70,tp:546.66,sl:707.44,cap:1500,lev:3,tpPct:'15.08',slPct:'9.91',profit:'678.39',loss:'445.95',rr:'1.5',result:'OPEN',date:'12/3/2025',closePrice:null},
+      {id:1005,sym:'XRP',tf:'1W',dir:'SHORT',entry:1.37,tp:1.17,sl:1.51,cap:1500,lev:3,tpPct:'14.60',slPct:'10.22',profit:'656.93',loss:'459.90',rr:'1.4',result:'OPEN',date:'12/3/2025',closePrice:null},
+      {id:1006,sym:'DOGE',tf:'1W',dir:'SHORT',entry:0.0922,tp:0.0782,sl:0.1013,cap:1500,lev:3,tpPct:'15.18',slPct:'9.87',profit:'683.30',loss:'444.15',rr:'1.5',result:'OPEN',date:'12/3/2025',closePrice:null},
+      {id:1007,sym:'LINK',tf:'1W',dir:'SHORT',entry:8.87,tp:7.53,sl:9.76,cap:1500,lev:3,tpPct:'15.11',slPct:'10.03',profit:'679.82',loss:'451.35',rr:'1.5',result:'OPEN',date:'12/3/2025',closePrice:null},
+      {id:1008,sym:'SUI',tf:'1W',dir:'SHORT',entry:0.9656,tp:0.8195,sl:1.06,cap:1500,lev:3,tpPct:'15.13',slPct:'9.77',profit:'680.87',loss:'439.65',rr:'1.5',result:'OPEN',date:'12/3/2025',closePrice:null},
+      {id:1009,sym:'INJ',tf:'1W',dir:'SHORT',entry:2.98,tp:2.53,sl:3.28,cap:1500,lev:3,tpPct:'15.10',slPct:'10.07',profit:'679.53',loss:'453.15',rr:'1.5',result:'OPEN',date:'12/3/2025',closePrice:null},
+      {id:1010,sym:'ATOM',tf:'1W',dir:'SHORT',entry:1.83,tp:1.56,sl:2.01,cap:1500,lev:3,tpPct:'14.75',slPct:'9.84',profit:'663.93',loss:'442.80',rr:'1.5',result:'OPEN',date:'12/3/2025',closePrice:null},
+    ];
+    journal = preloaded;
+    saveJournal();
+  }
   buildJournal();
 
   // Fetch live prices
@@ -1748,5 +1871,13 @@ async function init() {
 init();
 </script>
 
+<!-- PRICE ALERT NOTIFICATION -->
+
+<div id="price-alert-notif" style="display:none;position:fixed;top:70px;right:20px;z-index:999;max-width:300px;border-radius:10px;padding:12px 16px;border:1px solid;box-shadow:0 8px 30px rgba(0,0,0,.5);backdrop-filter:blur(10px);animation:slideIn .3s ease">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+    <div id="alert-content"></div>
+    <button onclick="document.getElementById('price-alert-notif').style.display='none'" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1">✕</button>
+  </div>
+</div>
 </body>
 </html>
