@@ -408,6 +408,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Space 
           </div>
           <button onclick="addJournalTrade()" style="padding:8px 16px;background:linear-gradient(135deg,var(--accent3),var(--accent2));border:none;border-radius:7px;color:#fff;font-size:9px;font-weight:700;cursor:pointer;font-family:'Space Grotesk',sans-serif;letter-spacing:.08em;white-space:nowrap">➕ أضف الصفقة</button>
         </div>
+        <div id="j-error" style="display:none;margin-top:8px;padding:7px 12px;border-radius:6px;background:rgba(255,51,85,.1);border:1px solid rgba(255,51,85,.3);color:var(--red);font-size:9px;font-family:'Syne Mono',monospace">⚠ يرجى تعبئة جميع الحقول: العملة، الدخول، الهدف، Stop Loss</div>
       </div>
     </div>
 
@@ -1587,7 +1588,13 @@ setInterval(async()=>{
 // ═══════════════════════════════════════════
 // TRADE JOURNAL
 // ═══════════════════════════════════════════
-let journal = JSON.parse(localStorage.getItem('apex_journal')||'[]');
+let journal = [];
+
+// Try to load from localStorage (may not work on GitHub Pages)
+try { 
+  const saved = localStorage.getItem('apex_journal');
+  if(saved) journal = JSON.parse(saved); 
+} catch(e){ journal = []; }
 
 function saveJournal() {
   try { localStorage.setItem('apex_journal', JSON.stringify(journal)); } catch(e){}
@@ -1603,7 +1610,11 @@ window.addJournalTrade = function() {
   const cap    = parseFloat(document.getElementById('j-capital').value)||500;
   const lev    = parseFloat(document.getElementById('j-lev').value)||1;
 
-  if(!sym||!entry||!tp||!sl) { alert('يرجى تعبئة جميع الحقول'); return; }
+  if(!sym||!entry||!tp||!sl) { 
+    const errDiv = document.getElementById('j-error');
+    if(errDiv){ errDiv.style.display='block'; setTimeout(()=>errDiv.style.display='none',3000); }
+    return; 
+  }
 
   const power  = cap * lev;
   const bull   = dir==='LONG';
