@@ -319,6 +319,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Space 
   <button class="ctab" onclick="showCTab('technical')">📊 TECHNICAL</button>
   <button class="ctab" onclick="showCTab('portfolio')">💼 PORTFOLIO</button>
   <button class="ctab" onclick="showCTab('note')">📋 ANALYST NOTE</button>
+  <button class="ctab" onclick="showCTab('journal')" style="color:var(--gold)">📒 سجل الصفقات</button>
 </div>
 
 <div id="panels">
@@ -347,6 +348,95 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Space 
       <div id="locked-pnl-content" style="display:flex;gap:16px;flex-wrap:wrap"></div>
     </div>
     <div class="warn-bar mono">⚠ Technical analysis based on live market data. Not financial advice. Always manage risk responsibly.</div>
+  </div>
+
+  <!-- JOURNAL TAB -->
+  <div id="cpanel-journal" class="cpanel">
+    <!-- ADD TRADE FORM -->
+    <div class="card">
+      <div class="card-hd" style="background:linear-gradient(135deg,rgba(255,215,0,.1),transparent)">
+        <span class="card-title mono">➕ تسجيل صفقة جديدة</span>
+      </div>
+      <div class="card-bd">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">
+          <div>
+            <div style="font-size:7px;color:var(--text3);margin-bottom:4px;font-family:'Syne Mono',monospace">العملة</div>
+            <input id="j-sym" class="search-inp mono" placeholder="BTC" style="width:100%;padding:7px 10px;font-size:11px" maxlength="10"/>
+          </div>
+          <div>
+            <div style="font-size:7px;color:var(--text3);margin-bottom:4px;font-family:'Syne Mono',monospace">الإطار الزمني</div>
+            <select id="j-tf" style="width:100%;background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:10px;outline:none;font-family:'Syne Mono',monospace">
+              <option>1W</option><option>1D</option><option>4H</option><option>1H</option><option>15M</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:7px;color:var(--text3);margin-bottom:4px;font-family:'Syne Mono',monospace">الاتجاه</div>
+            <select id="j-dir" style="width:100%;background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:10px;outline:none;font-family:'Syne Mono',monospace">
+              <option value="LONG">🟢 شراء LONG</option>
+              <option value="SHORT">🔴 بيع SHORT</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">
+          <div>
+            <div style="font-size:7px;color:var(--text3);margin-bottom:4px;font-family:'Syne Mono',monospace">سعر الدخول</div>
+            <input id="j-entry" class="search-inp mono" placeholder="0.9564" type="number" step="any" style="width:100%;padding:7px 10px"/>
+          </div>
+          <div>
+            <div style="font-size:7px;color:var(--text3);margin-bottom:4px;font-family:'Syne Mono',monospace">الهدف TP</div>
+            <input id="j-tp" class="search-inp mono" placeholder="0.8785" type="number" step="any" style="width:100%;padding:7px 10px"/>
+          </div>
+          <div>
+            <div style="font-size:7px;color:var(--text3);margin-bottom:4px;font-family:'Syne Mono',monospace">Stop Loss</div>
+            <input id="j-sl" class="search-inp mono" placeholder="1.01" type="number" step="any" style="width:100%;padding:7px 10px"/>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end">
+          <div>
+            <div style="font-size:7px;color:var(--text3);margin-bottom:4px;font-family:'Syne Mono',monospace">رأس المال $</div>
+            <input id="j-capital" class="search-inp mono" placeholder="500" type="number" style="width:100%;padding:7px 10px"/>
+          </div>
+          <div>
+            <div style="font-size:7px;color:var(--text3);margin-bottom:4px;font-family:'Syne Mono',monospace">الرافعة</div>
+            <select id="j-lev" style="width:100%;background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:10px;outline:none;font-family:'Syne Mono',monospace">
+              <option value="1">1x بدون رافعة</option>
+              <option value="2">2x</option>
+              <option value="3" selected>3x</option>
+              <option value="5">5x</option>
+              <option value="10">10x</option>
+            </select>
+          </div>
+          <button onclick="addJournalTrade()" style="padding:8px 16px;background:linear-gradient(135deg,var(--accent3),var(--accent2));border:none;border-radius:7px;color:#fff;font-size:9px;font-weight:700;cursor:pointer;font-family:'Space Grotesk',sans-serif;letter-spacing:.08em;white-space:nowrap">➕ أضف الصفقة</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div id="journal-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px"></div>
+
+    <!-- TRADES TABLE -->
+    <div class="card">
+      <div class="card-hd" style="display:flex;justify-content:space-between;align-items:center">
+        <span class="card-title mono">📊 سجل الصفقات</span>
+        <button onclick="clearJournal()" style="font-size:7px;padding:3px 8px;background:rgba(255,51,85,.1);border:1px solid rgba(255,51,85,.3);border-radius:4px;color:var(--red);cursor:pointer;font-family:'Space Grotesk',sans-serif">🗑 مسح الكل</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="position-table" id="journal-table">
+          <thead>
+            <tr>
+              <th>#</th><th>العملة</th><th>TF</th><th>اتجاه</th>
+              <th>دخول</th><th>هدف</th><th>SL</th>
+              <th>رأس المال</th><th>رافعة</th><th>ربح متوقع</th>
+              <th>النتيجة</th><th>إجراء</th>
+            </tr>
+          </thead>
+          <tbody id="journal-rows"></tbody>
+        </table>
+      </div>
+      <div id="journal-empty" style="text-align:center;padding:30px;color:var(--text3);font-family:'Syne Mono',monospace;font-size:10px">
+        لا توجد صفقات بعد · أضف أول صفقة أعلاه 📝
+      </div>
+    </div>
   </div>
 
   <!-- TECHNICAL TAB -->
@@ -1377,8 +1467,9 @@ window.showCTab = function(name) {
   document.querySelectorAll('.ctab').forEach(b=>b.classList.remove('active'));
   const p=document.getElementById('cpanel-'+name);if(p)p.classList.add('active');
   const tabs=document.querySelectorAll('.ctab');
-  const idx={signal:0,technical:1,portfolio:2,note:3}[name]||0;
+  const idx={signal:0,technical:1,portfolio:2,note:3,journal:4}[name]||0;
   if(tabs[idx])tabs[idx].classList.add('active');
+  if(name==='journal') buildJournal();
 };
 
 window.switchAssetTab = function(tab) {
@@ -1493,11 +1584,143 @@ setInterval(async()=>{
 // ═══════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════
+// ═══════════════════════════════════════════
+// TRADE JOURNAL
+// ═══════════════════════════════════════════
+let journal = JSON.parse(localStorage.getItem('apex_journal')||'[]');
+
+function saveJournal() {
+  try { localStorage.setItem('apex_journal', JSON.stringify(journal)); } catch(e){}
+}
+
+window.addJournalTrade = function() {
+  const sym    = (document.getElementById('j-sym').value||'').toUpperCase().trim();
+  const tf     = document.getElementById('j-tf').value;
+  const dir    = document.getElementById('j-dir').value;
+  const entry  = parseFloat(document.getElementById('j-entry').value);
+  const tp     = parseFloat(document.getElementById('j-tp').value);
+  const sl     = parseFloat(document.getElementById('j-sl').value);
+  const cap    = parseFloat(document.getElementById('j-capital').value)||500;
+  const lev    = parseFloat(document.getElementById('j-lev').value)||1;
+
+  if(!sym||!entry||!tp||!sl) { alert('يرجى تعبئة جميع الحقول'); return; }
+
+  const power  = cap * lev;
+  const bull   = dir==='LONG';
+  const tpPct  = bull ? ((tp-entry)/entry*100) : ((entry-tp)/entry*100);
+  const slPct  = bull ? ((entry-sl)/entry*100) : ((sl-entry)/entry*100);
+  const profit = power * (Math.abs(tpPct)/100);
+  const loss   = power * (Math.abs(slPct)/100);
+  const rr     = (profit/loss).toFixed(1);
+
+  journal.unshift({
+    id: Date.now(), sym, tf, dir, entry, tp, sl, cap, lev,
+    tpPct: tpPct.toFixed(2), slPct: slPct.toFixed(2),
+    profit: profit.toFixed(2), loss: loss.toFixed(2), rr,
+    result: 'OPEN', date: new Date().toLocaleDateString('ar-SA'),
+    closePrice: null
+  });
+  saveJournal();
+  buildJournal();
+
+  // Clear inputs
+  document.getElementById('j-sym').value='';
+  document.getElementById('j-entry').value='';
+  document.getElementById('j-tp').value='';
+  document.getElementById('j-sl').value='';
+};
+
+window.setResult = function(id, result) {
+  const t = journal.find(j=>j.id===id);
+  if(!t) return;
+  if(result==='WIN'||result==='LOSS') {
+    const price = prompt(result==='WIN'?'سعر الإغلاق عند الربح:':'سعر الإغلاق عند الخسارة:');
+    if(price) t.closePrice = parseFloat(price);
+  }
+  t.result = result;
+  saveJournal();
+  buildJournal();
+};
+
+window.deleteJournalTrade = function(id) {
+  journal = journal.filter(j=>j.id!==id);
+  saveJournal();
+  buildJournal();
+};
+
+window.clearJournal = function() {
+  if(confirm('هل تريد مسح كل السجل؟')) { journal=[]; saveJournal(); buildJournal(); }
+};
+
+function buildJournal() {
+  const tbody = document.getElementById('journal-rows');
+  const empty = document.getElementById('journal-empty');
+  const stats = document.getElementById('journal-stats');
+
+  if(!journal.length) {
+    tbody.innerHTML=''; empty.style.display='block';
+    stats.innerHTML=''; return;
+  }
+  empty.style.display='none';
+
+  // Stats
+  const closed = journal.filter(j=>j.result!=='OPEN');
+  const wins   = journal.filter(j=>j.result==='WIN').length;
+  const losses = journal.filter(j=>j.result==='LOSS').length;
+  const winRate = closed.length ? (wins/closed.length*100).toFixed(0) : 0;
+  const totalProfit = journal.filter(j=>j.result==='WIN').reduce((a,j)=>a+parseFloat(j.profit),0);
+  const totalLoss   = journal.filter(j=>j.result==='LOSS').reduce((a,j)=>a+parseFloat(j.loss),0);
+  const netPnL = totalProfit - totalLoss;
+
+  stats.innerHTML = [
+    {l:'إجمالي الصفقات',v:journal.length,sub:'كل الصفقات',c:'var(--accent)'},
+    {l:'نسبة النجاح',v:winRate+'%',sub:`${wins} ربح / ${losses} خسارة`,c:winRate>=50?'var(--green)':'var(--red)'},
+    {l:'إجمالي الأرباح',v:'$'+totalProfit.toFixed(0),sub:'صفقات رابحة',c:'var(--green)'},
+    {l:'صافي P&L',v:(netPnL>=0?'+':'')+'$'+netPnL.toFixed(0),sub:'ربح - خسارة',c:netPnL>=0?'var(--green)':'var(--red)'},
+  ].map(s=>`<div style="padding:10px;border-radius:8px;background:var(--card);border:1px solid var(--border);text-align:center">
+    <div style="font-size:6px;color:var(--text3);margin-bottom:4px;font-family:'Syne Mono',monospace">${s.l}</div>
+    <div style="font-size:18px;font-weight:700;color:${s.c};font-family:'Syne Mono',monospace">${s.v}</div>
+    <div style="font-size:7px;color:var(--text3);margin-top:2px;font-family:'Syne Mono',monospace">${s.sub}</div>
+  </div>`).join('');
+
+  // Rows
+  tbody.innerHTML = journal.map((t,i)=>{
+    const rCol = t.result==='WIN'?'var(--green)':t.result==='LOSS'?'var(--red)':t.result==='SKIP'?'var(--text3)':'var(--gold)';
+    const rBg  = t.result==='WIN'?'rgba(0,255,136,.1)':t.result==='LOSS'?'rgba(255,51,85,.1)':t.result==='SKIP'?'rgba(255,255,255,.05)':'rgba(255,215,0,.08)';
+    const rTxt = t.result==='WIN'?'✅ ربح':t.result==='LOSS'?'❌ خسارة':t.result==='SKIP'?'⏭ تخطي':'⏳ مفتوحة';
+    return `<tr>
+      <td style="color:var(--text3)">${journal.length-i}</td>
+      <td style="font-weight:700;color:var(--accent)">${t.sym}</td>
+      <td style="color:var(--text3)">${t.tf}</td>
+      <td><span style="font-size:7px;font-weight:700;padding:2px 6px;border-radius:3px;background:${t.dir==='LONG'?'rgba(0,255,136,.1)':'rgba(255,51,85,.1)'};color:${t.dir==='LONG'?'var(--green)':'var(--red)'}">${t.dir==='LONG'?'🟢 شراء':'🔴 بيع'}</span></td>
+      <td>${fmt(t.entry)}</td>
+      <td style="color:var(--green)">${fmt(t.tp)} <span style="color:var(--text3);font-size:7px">(${t.dir==='LONG'?'+':''}${t.tpPct}%)</span></td>
+      <td style="color:var(--red)">${fmt(t.sl)}</td>
+      <td style="color:var(--text2)">$${t.cap}</td>
+      <td style="color:var(--text2)">${t.lev}x</td>
+      <td style="color:var(--gold)">$${t.profit} <span style="font-size:7px;color:var(--text3)">R:R ${t.rr}</span></td>
+      <td><span style="font-size:8px;font-weight:700;padding:3px 8px;border-radius:4px;background:${rBg};color:${rCol}">${rTxt}</span>${t.closePrice?`<div style="font-size:7px;color:var(--text3);font-family:'Syne Mono',monospace;margin-top:2px">@ ${fmt(t.closePrice)}</div>`:''}</td>
+      <td>
+        ${t.result==='OPEN'?`
+          <div style="display:flex;gap:3px;flex-wrap:wrap">
+            <button onclick="setResult(${t.id},'WIN')" style="font-size:7px;padding:2px 5px;background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.3);border-radius:3px;color:var(--green);cursor:pointer">✅</button>
+            <button onclick="setResult(${t.id},'LOSS')" style="font-size:7px;padding:2px 5px;background:rgba(255,51,85,.1);border:1px solid rgba(255,51,85,.3);border-radius:3px;color:var(--red);cursor:pointer">❌</button>
+            <button onclick="setResult(${t.id},'SKIP')" style="font-size:7px;padding:2px 5px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:3px;color:var(--text3);cursor:pointer">⏭</button>
+          </div>`:
+          `<button onclick="setResult(${t.id},'OPEN')" style="font-size:7px;padding:2px 6px;background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.2);border-radius:3px;color:var(--gold);cursor:pointer">↩ إعادة</button>`
+        }
+        <button onclick="deleteJournalTrade(${t.id})" style="font-size:7px;padding:2px 5px;background:transparent;border:none;color:var(--text3);cursor:pointer;margin-top:2px">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
 async function init() {
   buildAssetList();
   buildHero();
   rebuildAll();
   buildAITypeBtns();
+  buildJournal();
 
   // Fetch live prices
   await fetchPrices();
